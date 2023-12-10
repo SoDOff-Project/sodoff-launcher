@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    
+    <SourceControlInformationFeatureSupported>true</SourceControlInformationFeatureSupported>
+    <Version>0.3.1</Version>
+    <InformationalVersion>$(SourceRevisionId)</InformationalVersion>
+    
+    <OutputPath>$(MSBuildThisFileDirectory)bin</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+  </PropertyGroup>
+
+  <!-- publish for specific operating system / architecture settings -->
+
+  <PropertyGroup Condition="'$(RuntimeIdentifier)'!=''">
+    <!-- auto add options: -self-contained true  -p:PublishSingleFile=true ... -->
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+  </PropertyGroup>
+
+</Project>
