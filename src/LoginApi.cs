@@ -91,6 +91,10 @@ public static class LoginApi {
             Console.WriteLine("Enter password: ");
             string password = Console.In.ReadLine();
             
+            (int cursorx, int cursory) = Console.GetCursorPosition();
+            Console.SetCursorPosition(cursorx, cursory-1);
+            Console.WriteLine("                      ");
+            
             var loginInfo = XmlUtil.DeserializeXml<ParentLoginInfo>( await LoginParent(client, username, password) );
             
             if (loginInfo.Status != MembershipUserStatus.Success) {

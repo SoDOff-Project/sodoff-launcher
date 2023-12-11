@@ -4,15 +4,22 @@ using Microsoft.Extensions.Options;
 public class Proxy
 {
 	private readonly IOptions<AppConfig> config;
+	private SemaphoreSlim semaphore;
+	private string mainXmlFile;
 	
 	public Proxy(RequestDelegate next, IOptions<AppConfig> config) {
 		this.config = config;
+		this.mainXmlFile = Path.GetFileName(config.Value.URL_MAIN_XML);
+		if (config.Value.MAX_CONCURRENT_DOWNLOADS > 0)
+			this.semaphore = new SemaphoreSlim(config.Value.MAX_CONCURRENT_DOWNLOADS);
+		else
+			this.semaphore = null;
 	}
 	
 	public async Task Invoke(HttpContext context) {
-		if (context.Request.Path.ToString().EndsWith("/DWADragonsMain.xml")) {
+		if (context.Request.Path.ToString().EndsWith("/" + mainXmlFile)) {
 			context.Response.StatusCode = 200;
-			await context.Response.SendFileAsync(Path.GetFullPath("DWADragonsMain.xml"));
+			await context.Response.SendFileAsync(Path.GetFullPath(mainXmlFile));
 			return;
 		}
 		
@@ -36,19 +43,26 @@ public class Proxy
 		}
 		
 		HttpClient client = new HttpClient();
-		SemaphoreSlim semaphore = new SemaphoreSlim(1);
+		
 		try {
-			semaphore.Wait();
+			if (semaphore != null)
+				semaphore.Wait();
+			
 			HttpResponseMessage response;
 			if (!ApiCall) {
+				if (config.Value.VERBOSE)
+					Console.WriteLine(string.Format("Start download (get): {0}", targetPath));
 				response = await client.GetAsync(config.Value.URL_MEDIA + targetPath);
 			} else {
+				if (config.Value.VERBOSE)
+					Console.WriteLine(string.Format("Start download (post): {0}", targetPath));
 				var content = new StreamContent(context.Request.Body);
 				foreach (var header in context.Request.Headers) {
 					content.Headers.TryAddWithoutValidation(header.Key, header.Value.ToString());
 				}
 				response = await client.PostAsync(config.Value.URL_API + targetPath, content);
 			}
+			
 			context.Response.StatusCode = (int)response.StatusCode;
 			Byte[] data = await response.Content.ReadAsByteArrayAsync();
 			// NOTE: loop with 8192 buffer size write + flush operations (instead of simple `context.Response.Body.WriteAsync(data)`)
@@ -69,8 +83,12 @@ public class Proxy
 					}
 				}
 			}
+			
+			if (config.Value.VERBOSE)
+				Console.WriteLine(string.Format("End download: {0}", targetPath));
 		} finally {
-			semaphore.Release();
+			if (semaphore != null)
+				semaphore.Release();
 		}
 	}
 }
