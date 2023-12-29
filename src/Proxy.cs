@@ -43,6 +43,7 @@ public class Proxy
 		}
 		
 		HttpClient client = new HttpClient();
+		client.Timeout = TimeSpan.FromMinutes(config.Value.HTTP_CLIENT_TIMEOUT);
 		
 		try {
 			if (semaphore != null)

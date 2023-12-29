@@ -8,7 +8,7 @@ builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfi
 Config.URL_USER_API = builder.Configuration.GetSection("AppConfig").GetValue<string>("URL_API");
 
 Task? proxyRun = null;
-if (builder.Configuration.GetSection("AppConfig").GetValue<bool>("USE_LOGIN")) {
+if (builder.Configuration.GetSection("AppConfig").GetValue<bool>("USE_PROXY")) {
     var proxyApp = builder.Build();
     proxyApp.UseMiddleware<Proxy>();
     proxyRun = proxyApp.RunAsync();

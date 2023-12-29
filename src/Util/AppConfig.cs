@@ -7,4 +7,5 @@ public class AppConfig {
 	public bool USE_LOGIN { get; set; } = false;
 	public bool VERBOSE { get; set; } = false;
 	public int MAX_CONCURRENT_DOWNLOADS { get; set; } = -1;
+	public int HTTP_CLIENT_TIMEOUT { get; set; } = 3;
 }
