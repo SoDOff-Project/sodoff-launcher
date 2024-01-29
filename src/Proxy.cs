@@ -1,4 +1,6 @@
 using System.Net.Http;
+using System.Net;
+using System.IO;
 using Microsoft.Extensions.Options;
 
 public class Proxy
@@ -49,38 +51,70 @@ public class Proxy
 			if (semaphore != null)
 				semaphore.Wait();
 			
-			HttpResponseMessage response;
-			if (!ApiCall) {
-				if (config.Value.VERBOSE)
-					Console.WriteLine(string.Format("Start download (get): {0}", targetPath));
-				response = await client.GetAsync(config.Value.URL_MEDIA + targetPath);
-			} else {
-				if (config.Value.VERBOSE)
-					Console.WriteLine(string.Format("Start download (post): {0}", targetPath));
+			if (config.Value.VERBOSE)
+				Console.WriteLine($"Start download (post={ApiCall}): {targetPath}");
+			
+			if (ApiCall) {
 				var content = new StreamContent(context.Request.Body);
 				foreach (var header in context.Request.Headers) {
 					content.Headers.TryAddWithoutValidation(header.Key, header.Value.ToString());
 				}
-				response = await client.PostAsync(config.Value.URL_API + targetPath, content);
-			}
-			
-			context.Response.StatusCode = (int)response.StatusCode;
-			Byte[] data = await response.Content.ReadAsByteArrayAsync();
-			// NOTE: loop with 8192 buffer size write + flush operations (instead of simple `context.Response.Body.WriteAsync(data)`)
-			//       to avoid `System.Net.Sockets.SocketException (10040): Unknown error (0x2738)` on some systems
-			for (int i=0, len=8192; i<data.Length; i+=len) {
-				if (i+len > data.Length)
-					len = data.Length - i;
-				await context.Response.Body.WriteAsync(data, i, len);
-				await context.Response.Body.FlushAsync();
-			}
-			if (!ApiCall && context.Response.StatusCode == 200 && config.Value.USE_CACHE_ON_PROXY) {
-				if (!Directory.Exists(Path.GetDirectoryName("cache" + targetPath))) {
-					Directory.CreateDirectory(Path.GetDirectoryName("cache" + targetPath));
+				using (var response = await client.PostAsync(config.Value.URL_API + targetPath, content)) {
+					context.Response.StatusCode = (int)response.StatusCode;
+					Byte[] data = await response.Content.ReadAsByteArrayAsync();
+					// NOTE: loop with 8192 buffer size write + flush operations (instead of simple `context.Response.Body.WriteAsync(data)`)
+					//       to avoid `System.Net.Sockets.SocketException (10040): Unknown error (0x2738)` on some systems
+					for (int i=0, len=8192; i<data.Length; i+=len) {
+						if (i+len > data.Length)
+							len = data.Length - i;
+						await context.Response.Body.WriteAsync(data, i, len);
+						await context.Response.Body.FlushAsync();
+					}
 				}
-				using (var stream = File.Open(Path.GetFullPath("cache" + targetPath), FileMode.Create)) {
-					using (var writer = new BinaryWriter(stream)) {
-						writer.Write(data);
+			} else {
+				string filePath = Path.GetFullPath("cache" + targetPath);
+				string filePathTmp = filePath + Path.GetRandomFileName().Substring(0, 8);
+				using (var response = await client.GetAsync(
+					config.Value.URL_MEDIA + targetPath,
+					HttpCompletionOption.ResponseHeadersRead
+				)) {
+					if (response.IsSuccessStatusCode) {
+						if (response.Content.Headers.ContentType?.MediaType != null)
+							context.Response.Headers["Content-Type"] =  response.Content.Headers.ContentType?.MediaType;
+						
+						if (response.Content.Headers.ContentLength != null)
+							context.Response.Headers["Content-Length"] = response.Content.Headers.ContentLength.ToString();
+						
+						using (var inputStream = await response.Content.ReadAsStreamAsync()) {
+							if (config.Value.USE_CACHE_ON_PROXY) {
+								string dirPath = Path.GetDirectoryName(filePath);
+								if (!Directory.Exists(dirPath)) {
+									Directory.CreateDirectory(dirPath);
+								}
+								
+								// copy data retrieved from upstream server to file and to response for game client
+								using (var fileStream = File.Open(filePathTmp, FileMode.Create)) {
+									// read response from upstream server
+									byte[] buffer = new byte[4096];
+									int bytesRead;
+									while ((bytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length)) > 0) {
+										// write to temporary file
+										var task1 = fileStream.WriteAsync(buffer, 0, bytesRead);
+										// send to client
+										var task2 = context.Response.Body.WriteAsync(buffer, 0, bytesRead);
+										// wait for finish both writes
+										await Task.WhenAll(task1, task2);
+									}
+								}
+								
+								// after successfully write data to temporary file, rename it to proper asset filename
+								File.Move(filePathTmp, filePath);
+							} else {
+								await inputStream.CopyToAsync(context.Response.Body);
+							}
+						}
+					} else {
+						context.Response.StatusCode = 404;
 					}
 				}
 			}
