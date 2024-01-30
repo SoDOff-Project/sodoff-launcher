@@ -44,7 +44,9 @@ public class Proxy
 			}
 		}
 		
-		HttpClient client = new HttpClient();
+		var handler = new HttpClientHandler();
+		handler.AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip;
+		HttpClient client = new HttpClient(handler);
 		client.Timeout = TimeSpan.FromMinutes(config.Value.HTTP_CLIENT_TIMEOUT);
 		
 		try {
