@@ -9,6 +9,14 @@ Config.URL_USER_API = builder.Configuration.GetSection("AppConfig").GetValue<str
 
 Task? proxyRun = null;
 if (builder.Configuration.GetSection("AppConfig").GetValue<bool>("USE_PROXY")) {
+    /* client doesn't like this ...
+    int MAX_CONCURRENT_DOWNLOADS = builder.Configuration.GetSection("AppConfig").GetValue<int>("MAX_CONCURRENT_DOWNLOADS");
+    if (MAX_CONCURRENT_DOWNLOADS > 0) {
+        builder.WebHost.ConfigureKestrel(serverOptions => {
+            serverOptions.Limits.MaxConcurrentConnections = MAX_CONCURRENT_DOWNLOADS;
+        });
+    }
+    */
     var proxyApp = builder.Build();
     proxyApp.UseMiddleware<Proxy>();
     proxyRun = proxyApp.RunAsync();

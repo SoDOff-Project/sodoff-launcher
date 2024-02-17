@@ -25,34 +25,34 @@ public class Proxy
 			return;
 		}
 		
-		bool ApiCall;
-		PathString targetPath;
-		if (context.Request.Path.StartsWithSegments("/apiproxy", out targetPath)) {
-			ApiCall = true;
-		} else if (context.Request.Path.StartsWithSegments("/sproxy.com", out targetPath)) {
-			ApiCall = false;
-		} else {
-			context.Response.StatusCode = 418;
-			return;
-		}
-		
-		if (!ApiCall && config.Value.USE_CACHE_ON_PROXY) {
-			if (File.Exists("cache" + targetPath)) {
-				context.Response.StatusCode = 200;
-				await context.Response.SendFileAsync(Path.GetFullPath("cache" + targetPath));
-				return;
-			}
-		}
-		
-		var handler = new HttpClientHandler();
-		handler.AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip;
-		HttpClient client = new HttpClient(handler);
-		client.Timeout = TimeSpan.FromMinutes(config.Value.HTTP_CLIENT_TIMEOUT);
-		
 		try {
 			if (semaphore != null)
 				semaphore.Wait();
 			
+			bool ApiCall;
+			PathString targetPath;
+			if (context.Request.Path.StartsWithSegments("/apiproxy", out targetPath)) {
+				ApiCall = true;
+			} else if (context.Request.Path.StartsWithSegments("/sproxy.com", out targetPath)) {
+				ApiCall = false;
+			} else {
+				context.Response.StatusCode = 418;
+				return;
+			}
+			
+			if (!ApiCall && config.Value.USE_CACHE_ON_PROXY) {
+				if (File.Exists("cache" + targetPath)) {
+					context.Response.StatusCode = 200;
+					await context.Response.SendFileAsync(Path.GetFullPath("cache" + targetPath));
+					return;
+				}
+			}
+			
+			var handler = new HttpClientHandler();
+			handler.AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip;
+			HttpClient client = new HttpClient(handler);
+			client.Timeout = TimeSpan.FromMinutes(config.Value.HTTP_CLIENT_TIMEOUT);
+		
 			if (config.Value.VERBOSE)
 				Console.WriteLine($"Start download (post={ApiCall}): {targetPath}");
 			
@@ -110,7 +110,13 @@ public class Proxy
 								}
 								
 								// after successfully write data to temporary file, rename it to proper asset filename
-								File.Move(filePathTmp, filePath);
+								try {
+									File.Move(filePathTmp, filePath);
+								} catch (System.IO.IOException exception) {
+									File.Delete(filePathTmp);
+									if (config.Value.VERBOSE)
+										Console.WriteLine(exception.ToString());
+								}
 							} else {
 								await inputStream.CopyToAsync(context.Response.Body);
 							}
@@ -123,6 +129,9 @@ public class Proxy
 			
 			if (config.Value.VERBOSE)
 				Console.WriteLine(string.Format("End download: {0}", targetPath));
+		} catch (System.Net.Http.HttpRequestException exception) {
+			Console.WriteLine(exception.ToString());
+			System.Environment.Exit(1);
 		} finally {
 			if (semaphore != null)
 				semaphore.Release();
