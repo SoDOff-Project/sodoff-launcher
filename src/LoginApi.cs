@@ -71,7 +71,7 @@ public static class LoginApi {
         return TripleDES.DecryptUnicode(bodyEncrypted, Config.KEY);
     }
 
-    public static async Task<string> GetApiToken() {
+    public static async Task<string> GetApiToken(bool childLogin) {
         HttpClient client = new HttpClient();
         string? apiToken = null;
 
@@ -103,6 +103,23 @@ public static class LoginApi {
             }
             
             apiToken = loginInfo.ApiToken;
+            
+            if (childLogin) {
+                Console.WriteLine("Vikings: ");
+                foreach (var viking in loginInfo.ChildList){
+                    Console.WriteLine($" - {viking.UserName}");
+                }
+                Console.WriteLine("Enter viking name: ");
+                string childName = Console.In.ReadLine();
+                
+                string? childUserId = loginInfo.ChildList.FirstOrDefault(v => v.UserName == childName)?.UserID;
+                if (childUserId is null)
+                    continue;
+                apiToken = await LoginChild(client, apiToken, childUserId);
+                if (apiToken is null)
+                    continue;
+            }
+            
             using (StreamWriter writer = new StreamWriter("apiToken.txt")) {
                 writer.WriteLine(apiToken);
             }

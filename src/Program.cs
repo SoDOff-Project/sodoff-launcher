@@ -7,6 +7,10 @@ builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfi
 
 Config.URL_USER_API = builder.Configuration.GetSection("AppConfig").GetValue<string>("URL_API");
 
+string apikey = builder.Configuration.GetSection("AppConfig").GetValue<string>("APIKEY");
+if (!String.IsNullOrEmpty(apikey))
+    Config.APIKEY = apikey;
+
 Task? proxyRun = null;
 if (builder.Configuration.GetSection("AppConfig").GetValue<bool>("USE_PROXY")) {
     /* client doesn't like this ...
@@ -27,7 +31,7 @@ System.Console.WriteLine("");
     
 string apiToken = "";
 if (builder.Configuration.GetSection("AppConfig").GetValue<bool>("USE_LOGIN")) {
-    apiToken = await LoginApi.GetApiToken();
+    apiToken = await LoginApi.GetApiToken(builder.Configuration.GetSection("AppConfig").GetValue<bool>("NEED_CHILD_LOGIN"));
 }
 
 try {
