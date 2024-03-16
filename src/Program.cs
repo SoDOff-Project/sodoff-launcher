@@ -34,11 +34,15 @@ if (builder.Configuration.GetSection("AppConfig").GetValue<bool>("USE_LOGIN")) {
     apiToken = await LoginApi.GetApiToken(builder.Configuration.GetSection("AppConfig").GetValue<bool>("NEED_CHILD_LOGIN"));
 }
 
-try {
-    var clientApp = System.Diagnostics.Process.Start("DOMain.exe", builder.Configuration.GetSection("AppConfig").GetValue<string>("URL_MAIN_XML") + " " + apiToken);
-    clientApp.WaitForExit();
-} catch (System.ComponentModel.Win32Exception) {
-    System.Console.WriteLine("Can't run DOMain.exe ...");
-    if (proxyRun != null)
-        proxyRun.Wait();
+string program = builder.Configuration.GetSection("AppConfig").GetValue<string>("PROGRAM_TO_START");
+if (program != string.Empty) {
+    try {
+        var clientApp = System.Diagnostics.Process.Start(program, builder.Configuration.GetSection("AppConfig").GetValue<string>("URL_MAIN_XML") + " " + apiToken);
+        clientApp.WaitForExit();
+        Environment.Exit(clientApp.ExitCode);
+    } catch (System.ComponentModel.Win32Exception) {
+        System.Console.WriteLine($"Can't run {program} ...");
+    }
 }
+if (proxyRun != null)
+        proxyRun.Wait();
