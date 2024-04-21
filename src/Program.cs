@@ -36,8 +36,14 @@ if (builder.Configuration.GetSection("AppConfig").GetValue<bool>("USE_LOGIN")) {
 
 string program = builder.Configuration.GetSection("AppConfig").GetValue<string>("PROGRAM_TO_START");
 if (program != string.Empty) {
+    string arguments = apiToken;
+    if (builder.Configuration.GetSection("AppConfig").GetValue<bool>("USE_LEGACY_ARGS")) {
+        arguments = apiToken;
+    } else {
+        arguments = builder.Configuration.GetSection("AppConfig").GetValue<string>("URL_MAIN_XML") + " " + apiToken;
+    }
     try {
-        var clientApp = System.Diagnostics.Process.Start(program, builder.Configuration.GetSection("AppConfig").GetValue<string>("URL_MAIN_XML") + " " + apiToken);
+        var clientApp = System.Diagnostics.Process.Start(program, arguments);
         clientApp.WaitForExit();
         Environment.Exit(clientApp.ExitCode);
     } catch (System.ComponentModel.Win32Exception) {
